@@ -1,13 +1,24 @@
 import { startLoop } from './loop.js';
 
 export class Game {
-  constructor(canvas) {
+  constructor(canvas, { width = 640, height = 480 } = {}) {
     this.canvas = canvas;
+    this.width = width;
+    this.height = height;
     this.ctx = canvas.getContext('2d');
     this.scene = null;
+    this.applyResolution();
+  }
+
+  applyResolution() {
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = this.width * dpr;
+    this.canvas.height = this.height * dpr;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   switchScene(scene) {
+    this.scene?.destroy?.(this);
     this.scene = scene;
     this.scene.init?.(this);
   }
@@ -17,7 +28,7 @@ export class Game {
     startLoop({
       update: (dt) => this.scene.update?.(dt, this),
       render: () => {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.clearRect(0, 0, this.width, this.height);
         this.scene.render?.(this.ctx, this);
       },
     });
