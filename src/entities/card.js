@@ -7,9 +7,11 @@ export class Card {
     this.value = value;
   }
 
-  render(ctx, x, y, selected) {
-    ctx.fillStyle = selected ? '#3a2a52' : '#1f2028';
-    ctx.strokeStyle = selected ? '#c084fc' : '#2e303a';
+  render(ctx, x, y, highlighted = false, dimmed = false) {
+    ctx.globalAlpha = dimmed ? 0.35 : 1;
+
+    ctx.fillStyle = highlighted ? '#3a2a52' : '#1f2028';
+    ctx.strokeStyle = highlighted ? '#c084fc' : '#2e303a';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.roundRect(x, y, CARD_WIDTH, CARD_HEIGHT, 8);
@@ -22,5 +24,7 @@ export class Card {
     ctx.textBaseline = 'middle';
     ctx.fillText(String(this.value), x + CARD_WIDTH / 2, y + CARD_HEIGHT / 2);
     ctx.textBaseline = 'alphabetic';
+
+    ctx.globalAlpha = 1;
   }
 }

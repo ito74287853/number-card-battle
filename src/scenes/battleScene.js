@@ -5,11 +5,10 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../core/config.js';
 
 const ROUND_COUNT = 5;
 const HAND_SIZE = 5;
-// 勝利時の超過分（total - enemyHp）を積算し、これを超えると自滅する。初期値は仮置きでプレイして調整する。
+// 勝利時の超過分（totalPlayed - enemyMaxHp）を積算し、これを超えると自滅する。初期値は仮置きでプレイして調整する。
 const OVERFLOW_BUST_CAP = 20;
 const CARD_GAP = 12;
 const CARD_Y = 190;
-const CONFIRM_BUTTON = { x: GAME_WIDTH / 2 - 70, y: 320, width: 140, height: 44 };
 const ACTION_BUTTON = { x: GAME_WIDTH / 2 - 70, y: GAME_HEIGHT / 2 + 36, width: 140, height: 40 };
 const SKIP_BUTTON = { x: GAME_WIDTH / 2 - 70, y: CARD_Y + CARD_HEIGHT + 30, width: 140, height: 40 };
 
@@ -41,16 +40,17 @@ export const battleScene = {
 
   startBattle() {
     const { min, max } = enemyHpRangeForRound(this.round);
-    this.enemyHp = rollEnemyHp(min, max);
+    this.enemyMaxHp = rollEnemyHp(min, max);
+    this.enemyHp = this.enemyMaxHp;
     this.hand = drawHand(this.deck, HAND_SIZE);
-    this.selected = new Set();
+    this.playedCards = new Set();
     this.phase = 'selecting';
     this.overflow = 0;
   },
 
-  get total() {
+  get totalPlayed() {
     let sum = 0;
-    for (const i of this.selected) sum += this.hand[i].value;
+    for (const i of this.playedCards) sum += this.hand[i].value;
     return sum;
   },
 
@@ -66,7 +66,7 @@ export const battleScene = {
     const startX = GAME_WIDTH / 2 - totalWidth / 2;
     return {
       x: startX + index * (CARD_WIDTH + CARD_GAP),
-      y: this.selected.has(index) ? CARD_Y - 15 : CARD_Y,
+      y: CARD_Y,
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
     };
@@ -97,17 +97,17 @@ export const battleScene = {
     this.hoverIndex = this.rewardOptions.findIndex((_, i) => pointInRect(x, y, this.getRewardCardRect(i)));
   },
 
-  toggleCard(index) {
-    if (index < 0 || index >= this.hand.length) return;
-    if (this.selected.has(index)) this.selected.delete(index);
-    else this.selected.add(index);
-  },
+  playCard(index) {
+    if (index < 0 || index >= this.hand.length || this.playedCards.has(index)) return;
+    this.playedCards.add(index);
+    this.enemyHp -= this.hand[index].value;
 
-  confirmSelection() {
-    if (this.selected.size === 0) return;
-    this.overflow = this.total - this.enemyHp;
-    if (this.overflow >= 0) this.totalOverflow += this.overflow;
-    this.phase = 'battleResult';
+    const handExhausted = this.playedCards.size === this.hand.length;
+    if (this.enemyHp <= 0 || handExhausted) {
+      this.overflow = this.totalPlayed - this.enemyMaxHp;
+      if (this.overflow >= 0) this.totalOverflow += this.overflow;
+      this.phase = 'battleResult';
+    }
   },
 
   confirmBattleResult() {
@@ -138,12 +138,9 @@ export const battleScene = {
     if (this.phase === 'selecting') {
       for (let i = 0; i < this.hand.length; i++) {
         if (pointInRect(x, y, this.getCardRect(i))) {
-          this.toggleCard(i);
+          this.playCard(i);
           return;
         }
-      }
-      if (this.selected.size > 0 && pointInRect(x, y, CONFIRM_BUTTON)) {
-        this.confirmSelection();
       }
     } else if (this.phase === 'battleResult') {
       if (pointInRect(x, y, ACTION_BUTTON)) {
@@ -166,12 +163,7 @@ export const battleScene = {
     if (this.phase === 'selecting') {
       const num = Number(e.key);
       if (Number.isInteger(num) && num >= 1 && num <= this.hand.length) {
-        this.toggleCard(num - 1);
-        return;
-      }
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        this.confirmSelection();
+        this.playCard(num - 1);
       }
     } else if (this.phase === 'battleResult') {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -209,7 +201,7 @@ export const battleScene = {
 
     ctx.fillStyle = '#f3f4f6';
     ctx.font = 'bold 28px sans-serif';
-    ctx.fillText(`敵 HP: ${this.enemyHp}`, width / 2, 60);
+    ctx.fillText(`敵 HP: ${this.enemyHp} / ${this.enemyMaxHp}`, width / 2, 60);
 
     ctx.fillStyle = '#9ca3af';
     ctx.font = '14px sans-serif';
@@ -220,25 +212,19 @@ export const battleScene = {
       return;
     }
 
-    ctx.fillStyle = '#f3f4f6';
-    ctx.font = '20px sans-serif';
-    ctx.fillText(`合計: ${this.total}`, width / 2, 112);
-
     this.hand.forEach((card, i) => {
       const r = this.getCardRect(i);
-      card.render(ctx, r.x, r.y, this.selected.has(i));
+      card.render(ctx, r.x, r.y, false, this.playedCards.has(i));
     });
-
-    this.renderButton(ctx, CONFIRM_BUTTON, '勝負', this.selected.size > 0);
 
     ctx.fillStyle = '#6b7280';
     ctx.font = '13px sans-serif';
-    ctx.fillText('数字キー: カード選択　Enter/Space: 勝負', width / 2, height - 20);
+    ctx.fillText('カードをタップ/数字キーで使用。敵HPを0以下にすれば勝利', width / 2, height - 20);
   },
 
   renderBattleResult(ctx, width, height) {
     // battleResult owns the whole screen so the WIN/LOSE text never has to
-    // share space with (or show through) the hand/confirm button underneath.
+    // share space with (or show through) the hand underneath.
     ctx.fillStyle = '#16171d';
     ctx.fillRect(0, 0, width, height);
 
@@ -256,7 +242,7 @@ export const battleScene = {
 
     ctx.fillStyle = '#f3f4f6';
     ctx.font = '18px sans-serif';
-    ctx.fillText(`合計 ${this.total} / 敵HP ${this.enemyHp}`, width / 2, height / 2 - 10);
+    ctx.fillText(`合計 ${this.totalPlayed} / 敵HP ${this.enemyMaxHp}`, width / 2, height / 2 - 10);
 
     ctx.fillStyle = color;
     ctx.font = 'bold 16px sans-serif';
@@ -289,7 +275,7 @@ export const battleScene = {
 
     this.rewardOptions.forEach((card, i) => {
       const r = this.getRewardCardRect(i);
-      card.render(ctx, r.x, r.y, i === this.hoverIndex);
+      card.render(ctx, r.x, r.y, i === this.hoverIndex, false);
     });
 
     this.renderButton(ctx, SKIP_BUTTON, 'スキップ', true);
