@@ -1,11 +1,11 @@
-import { battleScene } from './battleScene.js';
+import { rulesScene } from './rulesScene.js';
 
 export const titleScene = {
   init(game) {
     this.start = () => {
       window.removeEventListener('keydown', this.start);
       window.removeEventListener('click', this.start);
-      game.switchScene(battleScene);
+      game.switchScene(rulesScene);
     };
     window.addEventListener('keydown', this.start);
     window.addEventListener('click', this.start);
