@@ -18,8 +18,10 @@ export const battleScene = {
     this.canvas = game.canvas;
     this.handleClick = (e) => this.onClick(e);
     this.handleMouseMove = (e) => this.onMouseMove(e);
+    this.handleKeyDown = (e) => this.onKeyDown(e);
     this.canvas.addEventListener('click', this.handleClick);
     this.canvas.addEventListener('mousemove', this.handleMouseMove);
+    window.addEventListener('keydown', this.handleKeyDown);
     this.hoverIndex = -1;
     this.startRun();
   },
@@ -27,6 +29,7 @@ export const battleScene = {
   destroy() {
     this.canvas.removeEventListener('click', this.handleClick);
     this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+    window.removeEventListener('keydown', this.handleKeyDown);
   },
 
   startRun() {
@@ -94,44 +97,96 @@ export const battleScene = {
     this.hoverIndex = this.rewardOptions.findIndex((_, i) => pointInRect(x, y, this.getRewardCardRect(i)));
   },
 
+  toggleCard(index) {
+    if (index < 0 || index >= this.hand.length) return;
+    if (this.selected.has(index)) this.selected.delete(index);
+    else this.selected.add(index);
+  },
+
+  confirmSelection() {
+    if (this.selected.size === 0) return;
+    this.overflow = this.total - this.enemyHp;
+    if (this.overflow >= 0) this.totalOverflow += this.overflow;
+    this.phase = 'battleResult';
+  },
+
+  confirmBattleResult() {
+    if (this.outcome === 'win' && this.round < ROUND_COUNT) {
+      this.rewardOptions = rollRewardOptions(3);
+      this.hoverIndex = -1;
+      this.phase = 'reward';
+    } else {
+      this.startRun();
+    }
+  },
+
+  pickReward(index) {
+    if (index < 0 || index >= this.rewardOptions.length) return;
+    this.deck.push(this.rewardOptions[index]);
+    this.round += 1;
+    this.startBattle();
+  },
+
+  skipReward() {
+    this.round += 1;
+    this.startBattle();
+  },
+
   onClick(e) {
     const { x, y } = this.toLogicalPoint(e);
 
     if (this.phase === 'selecting') {
       for (let i = 0; i < this.hand.length; i++) {
         if (pointInRect(x, y, this.getCardRect(i))) {
-          if (this.selected.has(i)) this.selected.delete(i);
-          else this.selected.add(i);
+          this.toggleCard(i);
           return;
         }
       }
       if (this.selected.size > 0 && pointInRect(x, y, CONFIRM_BUTTON)) {
-        this.overflow = this.total - this.enemyHp;
-        if (this.overflow >= 0) this.totalOverflow += this.overflow;
-        this.phase = 'battleResult';
+        this.confirmSelection();
       }
     } else if (this.phase === 'battleResult') {
       if (pointInRect(x, y, ACTION_BUTTON)) {
-        if (this.outcome === 'win' && this.round < ROUND_COUNT) {
-          this.rewardOptions = rollRewardOptions(3);
-          this.hoverIndex = -1;
-          this.phase = 'reward';
-        } else {
-          this.startRun();
-        }
+        this.confirmBattleResult();
       }
     } else if (this.phase === 'reward') {
       for (let i = 0; i < this.rewardOptions.length; i++) {
         if (pointInRect(x, y, this.getRewardCardRect(i))) {
-          this.deck.push(this.rewardOptions[i]);
-          this.round += 1;
-          this.startBattle();
+          this.pickReward(i);
           return;
         }
       }
       if (pointInRect(x, y, SKIP_BUTTON)) {
-        this.round += 1;
-        this.startBattle();
+        this.skipReward();
+      }
+    }
+  },
+
+  onKeyDown(e) {
+    if (this.phase === 'selecting') {
+      const num = Number(e.key);
+      if (Number.isInteger(num) && num >= 1 && num <= this.hand.length) {
+        this.toggleCard(num - 1);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.confirmSelection();
+      }
+    } else if (this.phase === 'battleResult') {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.confirmBattleResult();
+      }
+    } else if (this.phase === 'reward') {
+      const num = Number(e.key);
+      if (Number.isInteger(num) && num >= 1 && num <= this.rewardOptions.length) {
+        this.pickReward(num - 1);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.skipReward();
       }
     }
   },
@@ -175,6 +230,10 @@ export const battleScene = {
     });
 
     this.renderButton(ctx, CONFIRM_BUTTON, '勝負', this.selected.size > 0);
+
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('数字キー: カード選択　Enter/Space: 勝負', width / 2, height - 20);
   },
 
   renderBattleResult(ctx, width, height) {
@@ -209,6 +268,10 @@ export const battleScene = {
 
     const label = outcome === 'win' && this.round < ROUND_COUNT ? '次のラウンドへ' : '最初から';
     this.renderButton(ctx, ACTION_BUTTON, label, true);
+
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('Enter/Space: 進む', width / 2, height - 20);
   },
 
   renderReward(ctx, width, height) {
@@ -230,6 +293,10 @@ export const battleScene = {
     });
 
     this.renderButton(ctx, SKIP_BUTTON, 'スキップ', true);
+
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('数字キー: カード選択　Enter/Space: スキップ', width / 2, height - 20);
   },
 
   renderButton(ctx, rect, label, enabled) {
