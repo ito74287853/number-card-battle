@@ -1,7 +1,7 @@
 import { startLoop } from './loop.js';
 
 export class Game {
-  constructor(canvas, { width = 640, height = 480 } = {}) {
+  constructor(canvas, { width, height }) {
     this.canvas = canvas;
     this.width = width;
     this.height = height;

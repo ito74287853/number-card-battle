@@ -19,6 +19,11 @@ export const rulesScene = {
     window.addEventListener('click', this.start);
   },
 
+  destroy() {
+    window.removeEventListener('keydown', this.start);
+    window.removeEventListener('click', this.start);
+  },
+
   render(ctx, game) {
     const { width, height } = game;
     ctx.fillStyle = '#16171d';

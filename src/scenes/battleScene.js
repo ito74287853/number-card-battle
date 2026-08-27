@@ -190,6 +190,10 @@ export const battleScene = {
       this.renderReward(ctx, width, height);
       return;
     }
+    if (this.phase === 'battleResult') {
+      this.renderBattleResult(ctx, width, height);
+      return;
+    }
 
     ctx.fillStyle = '#16171d';
     ctx.fillRect(0, 0, width, height);
@@ -207,11 +211,6 @@ export const battleScene = {
     ctx.font = '14px sans-serif';
     ctx.fillText(`累積超過: ${this.totalOverflow} / ${OVERFLOW_BUST_CAP}`, width / 2, 84);
 
-    if (this.phase === 'battleResult') {
-      this.renderBattleResult(ctx, width, height);
-      return;
-    }
-
     this.hand.forEach((card, i) => {
       const r = this.getCardRect(i);
       card.render(ctx, r.x, r.y, false, this.playedCards.has(i));
@@ -228,6 +227,11 @@ export const battleScene = {
     ctx.fillStyle = '#16171d';
     ctx.fillRect(0, 0, width, height);
 
+    ctx.fillStyle = '#9ca3af';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(`ROUND ${this.round} / ${ROUND_COUNT}`, width / 2, 30);
+
     const outcome = this.outcome;
     const cleared = outcome === 'win' && this.round === ROUND_COUNT;
     const color = { win: '#4ade80', lose: '#f87171', burst: '#fb923c' }[outcome];
@@ -236,7 +240,6 @@ export const battleScene = {
       : { win: 'WIN!', lose: 'LOSE...', burst: '使いすぎで自滅…' }[outcome];
 
     ctx.fillStyle = cleared ? '#facc15' : color;
-    ctx.textAlign = 'center';
     ctx.font = cleared ? 'bold 36px sans-serif' : outcome === 'burst' ? 'bold 32px sans-serif' : 'bold 48px sans-serif';
     ctx.fillText(titleText, width / 2, height / 2 - 45);
 
