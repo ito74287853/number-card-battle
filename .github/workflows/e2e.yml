@@ -1,0 +1,55 @@
+# push / Pull Request のたびに E2E テストを自動で実行する。
+# 失敗すると GitHub 上で赤くなり、証拠のスクリーンショットは成果物として残る。
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:        # GitHub の画面から手動でも回せる
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ---------- ゲーム側 ----------
+      - name: ゲームの依存関係をインストール
+        run: npm ci
+
+      - name: dev サーバーを起動して、繋がるまで待つ
+        run: |
+          npm run dev -- --port 5199 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5199/ > /dev/null && echo "起動を確認しました" && exit 0
+            sleep 1
+          done
+          echo "60秒待っても dev サーバーに繋がりませんでした" && exit 1
+
+      # ---------- テスト側 ----------
+      - name: テストの依存関係をインストール
+        working-directory: e2e
+        run: npm ci
+
+      # ubuntu ランナーには Chrome が入っている。browser.mjs が自動で見つけるが、
+      # 環境が変わっても動くよう明示しておく。
+      - name: E2Eテストを実行
+        working-directory: e2e
+        env:
+          BROWSER_PATH: /usr/bin/google-chrome
+          APP_URL: http://localhost:5199/
+        run: node run.mjs
+
+      # 失敗したときこそ証拠が要るので always() を付ける
+      - name: 証拠（スクリーンショットとレポート）を保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: e2e/report/
+          retention-days: 30
