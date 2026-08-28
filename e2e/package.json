@@ -1,0 +1,10 @@
+{
+  "name": "number-card-battle-review",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "number-card-battle のレビュー用検証スクリプト",
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}
