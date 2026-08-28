@@ -24,10 +24,14 @@ import { pause, rewardRect } from './harness.mjs';
 
 // find-seeds.mjs で総当たりして見つけた、狙った状況になるシード。
 // 「必ずこうなる」状況は狙って作れないので、シードを探して固定する。
+//
+// ⚠️ ゲームのルールを変えると乱数の消費順が変わるので、ここの値は作り直しになる。
+//    `node find-seeds.mjs` と `node find-seeds.mjs --full` で取り直すこと。
+//    （敵が複数体になった 2026-08-28 の変更で、実際に全部入れ替えた）
 const SEED_WIN = 1;     // 1ラウンド目に勝てる手札
-const SEED_LOSE = 17;   // 1ラウンド目にどう使っても倒せない手札
-const SEED_BURST = 10;  // 左から順に使うと ROUND4 で累積超過が上限を超える
-const SEED_CLEAR = 9;   // 左から順に使うと 5ラウンド勝ち抜ける
+const SEED_LOSE = 23;   // 左から順に使うと ROUND2 で倒しきれず敗北する
+const SEED_BURST = 3;   // 左から順に使うと ROUND4 で累積超過が上限を超える
+const SEED_CLEAR = 20;  // 左から順に使うと 5ラウンド勝ち抜ける
 
 export const cases = [
   // ---------------- SC01_TTL: タイトル画面 ----------------
@@ -141,15 +145,15 @@ export const cases = [
   },
   {
     id: 'SC03_BTL-05', kind: 'test', tags: ['機能'], seed: SEED_LOSE,
-    title: '手札を使い切って倒せなければ敗北画面になる',
+    title: '手札を使い切って倒しきれなければ敗北画面になる',
     why: '敗北条件。勝ちだけ確認して負けを確認しないテストは片手落ち',
     touches: ['SC04_RES:敗北'],
+    // 敵が複数体になってラウンド1は事実上必ず勝てるようになったので、
+    // 1ラウンドだけでは負けを作れない。通しで遊んで最初の敗北を見る。
     async run(g, t) {
-      await g.toBattle();
-      await g.shot('バトル開始時：この手札では合計が敵HPに届かない');
-      t.is(await g.playUntilResult(), 'battleResult', '5枚使い切ると結果画面へ移る');
-      t.is(await g.resultKind(), 'lose', '見出しが LOSE... になっている');
-      await g.shot('5枚使い切った後：敗北画面');
+      const r = await g.playFullRun();
+      t.is(r.kind, 'lose', `手札を使い切って倒しきれないと敗北になる（ROUND ${r.round} で決着）`);
+      await g.shot(`ROUND${r.round}：手札を使い切って敗北`);
     },
   },
 
@@ -225,9 +229,8 @@ export const cases = [
     why: '負けたら詰み、では遊べない。やり直しの導線',
     touches: ['SC04_RES:敗北'],
     async run(g, t) {
-      await g.toBattle();
-      await g.playUntilResult();
-      t.is(await g.resultKind(), 'lose', '前提：敗北画面にいる');
+      const r = await g.playFullRun();
+      t.is(r.kind, 'lose', `前提：敗北画面にいる（ROUND ${r.round} で決着）`);
       await g.shot('敗北画面：「最初から」を押す');
       await g.tapAction(); await pause(500);
       t.is(await g.phase(), 'selecting', 'バトル画面に戻る');

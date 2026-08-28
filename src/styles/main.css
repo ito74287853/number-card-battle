@@ -23,6 +23,9 @@ body {
 }
 
 canvas {
+  /* iOS では「押せる要素」と見なされないとタップの click が飛ばないことがある。
+     cursor: pointer を付けると押せる要素として扱われる（定番の回避策）。 */
+  cursor: pointer;
   display: block;
   width: 100%;
   height: auto;

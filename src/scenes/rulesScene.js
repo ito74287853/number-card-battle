@@ -11,18 +11,20 @@ const LINES = [
 
 export const rulesScene = {
   init(game) {
+    // titleScene と同じ理由で、click は canvas に登録する（iOS 対策）
+    this.canvas = game.canvas;
     this.start = () => {
       window.removeEventListener('keydown', this.start);
-      window.removeEventListener('click', this.start);
+      this.canvas.removeEventListener('click', this.start);
       game.switchScene(battleScene);
     };
     window.addEventListener('keydown', this.start);
-    window.addEventListener('click', this.start);
+    this.canvas.addEventListener('click', this.start);
   },
 
   destroy() {
     window.removeEventListener('keydown', this.start);
-    window.removeEventListener('click', this.start);
+    this.canvas.removeEventListener('click', this.start);
   },
 
   render(ctx, game) {
