@@ -2,18 +2,22 @@ import { rulesScene } from './rulesScene.js';
 
 export const titleScene = {
   init(game) {
+    // click は window ではなく canvas に登録する。
+    // iOS（Safari / Brave など WebKit 全般）では、リンクやボタン以外の要素へのタップから
+    // click が window / document まで伝わらないため、window に登録するとタップが効かない。
+    this.canvas = game.canvas;
     this.start = () => {
       window.removeEventListener('keydown', this.start);
-      window.removeEventListener('click', this.start);
+      this.canvas.removeEventListener('click', this.start);
       game.switchScene(rulesScene);
     };
     window.addEventListener('keydown', this.start);
-    window.addEventListener('click', this.start);
+    this.canvas.addEventListener('click', this.start);
   },
 
   destroy() {
     window.removeEventListener('keydown', this.start);
-    window.removeEventListener('click', this.start);
+    this.canvas.removeEventListener('click', this.start);
   },
 
   render(ctx, game) {

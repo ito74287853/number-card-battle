@@ -40,7 +40,9 @@ import { screens, PREFIX } from './screens.mjs';
 const argv = process.argv.slice(2);
 const tagIdx = argv.indexOf('--tag');
 const tag = tagIdx >= 0 ? argv[tagIdx + 1] : null;
-const ids = argv.filter((a, i) => !a.startsWith('--') && i !== tagIdx + 1);
+// --tag の「値」だけを除く。tagIdx が -1 のときに i !== 0 になって
+// 先頭の引数を落とさないよう、tagIdx >= 0 を必ず確認する
+const ids = argv.filter((a, i) => !a.startsWith('--') && !(tagIdx >= 0 && i === tagIdx + 1));
 const targets = cases.filter((c) =>
   (!tag || c.tags.includes(tag)) &&
   (!ids.length || ids.includes(c.id) || ids.includes(c.id.split('-')[0]))
@@ -121,8 +123,10 @@ for (const r of results) {
   md += `| ${r.seq} | [${r.id}](#${r.id.toLowerCase().replace('-', '')}) | ${icon} | ${r.title} | ${r.tags.join(', ')} | ${(r.ms / 1000).toFixed(1)}s |\n`;
 }
 
-// 画面カバレッジ：テストが1件も無い画面／一度も出していない状態を機械的に洗い出す
-md += `\n### 画面カバレッジ\n\n| 画面ID | 名前 | ケース数 | 状態カバレッジ |\n|---|---|---|---|\n`;
+// 画面カバレッジ：テストが1件も無い画面／一度も出していない状態を機械的に洗い出す。
+// 絞り込み実行のときは「走らせていないだけ」なので穴として報告しない。
+const filtered = ids.length > 0 || tag !== null;
+md += `\n### 画面カバレッジ${filtered ? '（絞り込み実行のため参考値）' : ''}\n\n| 画面ID | 名前 | ケース数 | 状態カバレッジ |\n|---|---|---|---|\n`;
 const touched = new Set(results.flatMap((r) => r.touches ?? []));
 const gaps = [];
 for (const s of screens) {
@@ -137,7 +141,7 @@ for (const s of screens) {
   if (n === 0) gaps.push(`${s.id} ${s.name} にテストが1件もない`);
   md += `| ${s.id} | ${s.name} | ${n} | ${cov} |\n`;
 }
-if (gaps.length) {
+if (gaps.length && !filtered) {
   md += `\n⚠️ **カバレッジの穴**\n\n` + gaps.map((x) => `- ${x}`).join('\n') + '\n';
   console.log(`\n⚠️ カバレッジの穴`);
   for (const x of gaps) console.log(`   - ${x}`);
