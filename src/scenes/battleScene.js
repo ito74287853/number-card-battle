@@ -1,11 +1,11 @@
 import { CARD_WIDTH, CARD_HEIGHT } from '../entities/card.js';
-import { createBaseDeck, drawHand, rollEnemyHp, enemyHpRangeForRound, rollRewardOptions } from '../utils/deck.js';
+import { createBaseDeck, drawHand, rollEnemiesForRound, rollRewardOptions } from '../utils/deck.js';
 import { pointInRect } from '../utils/collision.js';
 import { GAME_WIDTH, GAME_HEIGHT } from '../core/config.js';
 
 const ROUND_COUNT = 5;
 const HAND_SIZE = 5;
-// 勝利時の超過分（totalPlayed - enemyMaxHp）を積算し、これを超えると自滅する。初期値は仮置きでプレイして調整する。
+// 勝利時の超過分（totalPlayed - enemiesTotalMaxHp）を積算し、これを超えると自滅する。初期値は仮置きでプレイして調整する。
 const OVERFLOW_BUST_CAP = 20;
 const CARD_GAP = 12;
 const CARD_Y = 190;
@@ -39,13 +39,13 @@ export const battleScene = {
   },
 
   startBattle() {
-    const { min, max } = enemyHpRangeForRound(this.round);
-    this.enemyMaxHp = rollEnemyHp(min, max);
-    this.enemyHp = this.enemyMaxHp;
+    this.enemies = rollEnemiesForRound(this.round);
+    this.enemiesTotalMaxHp = this.enemies.reduce((sum, e) => sum + e.maxHp, 0);
     this.hand = drawHand(this.deck, HAND_SIZE);
     this.playedCards = new Set();
     this.phase = 'selecting';
     this.overflow = 0;
+    this.roundWon = false;
   },
 
   get totalPlayed() {
@@ -55,7 +55,7 @@ export const battleScene = {
   },
 
   get outcome() {
-    if (this.overflow < 0) return 'lose';
+    if (!this.roundWon) return 'lose';
     if (this.totalOverflow > OVERFLOW_BUST_CAP) return 'burst';
     return 'win';
   },
@@ -100,12 +100,20 @@ export const battleScene = {
   playCard(index) {
     if (index < 0 || index >= this.hand.length || this.playedCards.has(index)) return;
     this.playedCards.add(index);
-    this.enemyHp -= this.hand[index].value;
+    this.enemies[0].hp -= this.hand[index].value;
+    if (this.enemies[0].hp <= 0) this.enemies.shift();
 
-    const handExhausted = this.playedCards.size === this.hand.length;
-    if (this.enemyHp <= 0 || handExhausted) {
-      this.overflow = this.totalPlayed - this.enemyMaxHp;
-      if (this.overflow >= 0) this.totalOverflow += this.overflow;
+    if (this.enemies.length === 0) {
+      this.overflow = this.totalPlayed - this.enemiesTotalMaxHp;
+      this.totalOverflow += this.overflow;
+      this.roundWon = true;
+      this.phase = 'battleResult';
+      return;
+    }
+
+    if (this.playedCards.size === this.hand.length) {
+      this.overflow = this.totalPlayed - this.enemiesTotalMaxHp;
+      this.roundWon = false;
       this.phase = 'battleResult';
     }
   },
@@ -204,13 +212,11 @@ export const battleScene = {
     ctx.font = 'bold 16px sans-serif';
     ctx.fillText(`ROUND ${this.round} / ${ROUND_COUNT}`, width / 2, 30);
 
-    ctx.fillStyle = '#f3f4f6';
-    ctx.font = 'bold 28px sans-serif';
-    ctx.fillText(`敵 HP: ${this.enemyHp} / ${this.enemyMaxHp}`, width / 2, 60);
+    this.renderEnemyQueue(ctx, width);
 
     ctx.fillStyle = '#9ca3af';
     ctx.font = '14px sans-serif';
-    ctx.fillText(`累積超過: ${this.totalOverflow} / ${OVERFLOW_BUST_CAP}`, width / 2, 84);
+    ctx.fillText(`累積超過: ${this.totalOverflow} / ${OVERFLOW_BUST_CAP}`, width / 2, 168);
 
     this.hand.forEach((card, i) => {
       const r = this.getCardRect(i);
@@ -219,7 +225,50 @@ export const battleScene = {
 
     ctx.fillStyle = '#6b7280';
     ctx.font = '13px sans-serif';
-    ctx.fillText('カードをタップ/数字キーで使用。敵HPを0以下にすれば勝利', width / 2, height - 20);
+    ctx.fillText('カードをタップ/数字キーで使用。先頭の敵から倒し、全滅させれば勝利', width / 2, height - 20);
+  },
+
+  renderEnemyQueue(ctx, width) {
+    const startY = 95;
+    const frontW = 130;
+    const frontH = 56;
+    const waitW = 70;
+    const waitH = 40;
+    const gap = 14;
+
+    let totalWidth = frontW;
+    for (let i = 1; i < this.enemies.length; i++) totalWidth += gap + waitW;
+    let x = width / 2 - totalWidth / 2;
+
+    const front = this.enemies[0];
+    ctx.fillStyle = '#2a2130';
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x, startY, frontW, frontH, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#f3f4f6';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(`${Math.max(front.hp, 0)} / ${front.maxHp}`, x + frontW / 2, startY + frontH / 2 + 8);
+    x += frontW + gap;
+
+    for (let i = 1; i < this.enemies.length; i++) {
+      const enemy = this.enemies[i];
+      const y = startY + (frontH - waitH) / 2;
+      ctx.fillStyle = '#1f2028';
+      ctx.strokeStyle = '#3a3a42';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(x, y, waitW, waitH, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(`${enemy.maxHp}`, x + waitW / 2, y + waitH / 2 + 5);
+      x += waitW + gap;
+    }
   },
 
   renderBattleResult(ctx, width, height) {
@@ -246,7 +295,7 @@ export const battleScene = {
 
     ctx.fillStyle = '#f3f4f6';
     ctx.font = '18px sans-serif';
-    ctx.fillText(`合計 ${this.totalPlayed} / 敵HP ${this.enemyMaxHp}`, width / 2, height / 2 - 10);
+    ctx.fillText(`合計 ${this.totalPlayed} / 敵HP合計 ${this.enemiesTotalMaxHp}`, width / 2, height / 2 - 10);
 
     ctx.fillStyle = color;
     ctx.font = 'bold 16px sans-serif';
