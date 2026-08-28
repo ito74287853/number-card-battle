@@ -160,6 +160,9 @@ export const battleScene = {
   },
 
   onKeyDown(e) {
+    if (e.repeat) return; // 押しっぱなしの連射で画面が1つ飛ぶのを防ぐ
+    if (e.key === ' ') e.preventDefault(); // ページスクロールを防ぐ（現状は無害だが将来のレイアウト変更に備える）
+
     if (this.phase === 'selecting') {
       const num = Number(e.key);
       if (Number.isInteger(num) && num >= 1 && num <= this.hand.length) {
@@ -167,7 +170,6 @@ export const battleScene = {
       }
     } else if (this.phase === 'battleResult') {
       if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
         this.confirmBattleResult();
       }
     } else if (this.phase === 'reward') {
@@ -177,7 +179,6 @@ export const battleScene = {
         return;
       }
       if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
         this.skipReward();
       }
     }
